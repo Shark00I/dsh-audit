@@ -137,7 +137,9 @@ function pluginNameOf(fiber) {
   const entry = fiber?.entry
   const raw = entry?.options?.name ?? entry?.name ?? fiber?.runtime?.name
   if (typeof raw !== 'string' || raw === '') return ''
-  if (raw.includes('/') || raw.includes('\\')) return basename(raw)
+  // Dev overlays load by absolute file path; package names keep their scope
+  // (`@scope/name`), so basename() must only apply to real paths.
+  if (/^[A-Za-z]:[\\/]/.test(raw) || raw.startsWith('/') || raw.startsWith('\\\\')) return basename(raw)
   return raw
 }
 
@@ -198,12 +200,29 @@ export function apply(ctx, config = {}) {
     toolNames: () => ctx.tools.schemas().map((schema) => schema.name),
   })
 
-  /** Should this plugin be observed? Audit never watches itself or official packages. */
+  /** @type {Set<string>} third-party package names seen by the last scan */
+  const knownThirdParty = new Set()
+
+  /**
+   * Should this plugin be observed? Only installed third-party packages are:
+   * the host's own bundle rows (and its internal aliases such as
+   * `tool-workspace-dependencies`) never belong in the audit panel.
+   */
   const watched = (pluginName) => {
     if (pluginName === '' || pluginName === SELF) return false
     if (pluginName.startsWith('@deepseek-ai/')) return false
+    if (pluginName.startsWith('cordis:')) return false
+    // Without a scan there is no trustworthy third-party list yet; watching
+    // everything would fill the panel with the host's own bundle rows.
+    if (!knownThirdParty.has(pluginName)) return false
     if (Array.isArray(settings.exclude) && settings.exclude.includes(pluginName)) return false
     return true
+  }
+
+  /** Refresh the third-party allow-list from a scan result. */
+  const updateThirdParty = (scan) => {
+    knownThirdParty.clear()
+    for (const item of scan?.items ?? []) if (typeof item?.name === 'string') knownThirdParty.add(item.name)
   }
 
   /**
@@ -266,6 +285,7 @@ export function apply(ctx, config = {}) {
       profiles: selected.map((profile) => profile.name),
       selfSkipped,
     }
+    updateThirdParty(lastScan)
     await store.saveScan({ ...lastScan, items: lastScan.items.map((item) => ({ ...item, hosts: item.hosts.slice(0, 40) })) })
     return lastScan
   }
@@ -300,6 +320,8 @@ export function apply(ctx, config = {}) {
     scanRunning = scanInstalled(options).finally(() => { scanRunning = null })
     const result = await scanRunning
     emitEvent({ type: 'scan', at: Date.now(), plugins: result.items.length })
+    // Fill in plugins that were already running before the allow-list existed.
+    seedRunning()
     return result
   }
 
@@ -332,12 +354,11 @@ export function apply(ctx, config = {}) {
         monitor.start(fiber, true)
         seeded += 1
       }
-      store.record({ type: 'seed', at: Date.now(), detail: `entries=${entries} active=${active} seeded=${seeded}` })
+      if (seeded > 0) store.record({ type: 'seed', at: Date.now(), detail: `entries=${entries} active=${active} seeded=${seeded}` })
     } catch (error) {
       emitError({ at: Date.now(), source: 'seed', message: String(error?.message ?? error) })
     }
   }
-
   // ---------------------------------------------------------------- startup
   ctx.effect(() => {
     let disposed = false
@@ -349,7 +370,10 @@ export function apply(ctx, config = {}) {
         if (saved[key] !== undefined) settings[key] = saved[key]
       }
       const cached = await store.loadScan()
-      if (cached !== null && lastScan === null) lastScan = cached
+      if (cached !== null && lastScan === null) {
+        lastScan = cached
+        updateThirdParty(cached)
+      }
       seedRunning()
       if (settings.autoScanOnStart === true) {
         const timer = setTimeout(() => {
@@ -457,6 +481,12 @@ export function apply(ctx, config = {}) {
     (change) => {
       try {
         emitEvent({ type: 'manager', at: Date.now(), detail: JSON.stringify(change ?? {}).slice(0, 400) })
+        // A new package changes the third-party allow-list; refresh it once the
+        // manager settles so the new plugin is watched from here on.
+        const timer = setTimeout(() => {
+          rescan().catch(() => {})
+        }, 2000)
+        if (typeof timer.unref === 'function') timer.unref()
       } catch {
         /* ignore */
       }
