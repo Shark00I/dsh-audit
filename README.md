@@ -110,6 +110,13 @@ Nothing polls, nothing watches files. Events sit in a 600-entry ring and flush t
 
 A plugin does not itself spend model tokens; what is counted here is the tool calls its registration causes. A plugin with no registered tools shows 0.
 
+### When a newly installed plugin appears
+
+- **Grades**: the manager change triggers a rescan about 2 s after an install / uninstall / enable / disable, and the panel polls every 6 s — no manual refresh, at most ~8 s.
+- **Runtime**: the rescan also refreshes the monitoring allow-list. A plugin that is already ACTIVE when it is installed shows up in "running" right away (without a start entry); its next start/stop or sensitive call lands on the timeline.
+- **Never listed**: `@deepseek-ai/*` official packages, entries loaded through a temporary `--patch` overlay that are absent from the profile `package.json`, and anything in the Settings exclude list.
+- Press **Rescan** to see it immediately.
+
 ---
 
 ## What the pre-install audit cannot see
