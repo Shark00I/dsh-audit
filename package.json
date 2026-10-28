@@ -54,7 +54,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-name/dsh-audit.git"
+    "url": "git+https://github.com/Shark00I/dsh-audit.git"
   },
   "publishConfig": {
     "access": "public"
