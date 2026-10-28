@@ -228,7 +228,7 @@ dsh-audit/
 # 本地试装（桌面版请用应用内插件页）
 dsh plugin --profile desktop add link:<绝对路径>
 
-# 只改了这个仓库、想临时试一下不改 profile
+# 只改了这个仓库、想临时试一下不改 profile（dev.patch.yml 只在本仓库里，npm 包不含）
 dsh web --patch "<绝对路径>/dev.patch.yml"
 ```
 

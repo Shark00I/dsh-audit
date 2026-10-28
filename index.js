@@ -693,5 +693,10 @@ export function apply(ctx, config = {}) {
     /** The classified list of built-in sensitive rules. */
     classify: classifyCall,
   }
-  ctx.provide('audit', api)
+  try {
+    ctx.provide('audit', api)
+  } catch (error) {
+    // A host without `ctx.provide` still gets the tools, the panel and the API.
+    emitError({ at: Date.now(), source: 'service', message: String(error?.message ?? error) })
+  }
 }
