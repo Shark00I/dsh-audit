@@ -1,0 +1,4 @@
+# dsh-audit bundle patch: mount the audit console as one profile row.
+- insert:
+    - id: dsh-audit
+      name: 'dsh-audit'

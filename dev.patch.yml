@@ -1,0 +1,5 @@
+# Local overlay: load this checkout without touching the profile.
+# Absolute path for this machine — change it when the checkout moves.
+- insert:
+    - id: dsh-audit-dev
+      name: 'C:/Users/Administrator/Desktop/Dev/dsh-audit/index.js'
